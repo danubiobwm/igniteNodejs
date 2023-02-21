@@ -1,38 +1,30 @@
-import http from 'node:http';
-import {DataBase} from './database.js';
-import { json } from './middlewares/json.js';
+import http from 'node:http'
 
-const users = [];
-
-const database = new DataBase();
+import { json } from './middlewares/json.js'
+import { routes } from './routes.js'
+import { extractQueryParams } from './utils/extract-query-params.js'
 
 const server = http.createServer(async (req, res) => {
+  const { method, url } = req
 
-  const {method, url} = req;
+  await json(req, res)
 
+  const route = routes.find(route => {
+    return route.method === method && route.path.test(url)
+  })
 
-  await json(req, res);
+  if (route) {
+    const routeParams = req.url.match(route.path)
 
-  if(method === 'GET' && url === "/users"){
-    const user = database.selected('users')
-    return res.end(JSON.stringify(user))
+    const { query, ...params } = routeParams.groups
+
+    req.params = params
+    req.query = query ? extractQueryParams(query) : {}
+
+    return route.handler(req, res)
   }
 
-  if(method === 'POST' && url === "/users"){
-    const {name, email} = req.body;
-    const user = {
-      id:1,
-      name,
-      email
+  return res.writeHead(404).end()
+})
 
-    }
-    database.insert('users', user)
-    return res
-    .writeHead(201)
-    .end()
-  }
-
-  return res.writeHead(404).end('Not found')
-});
-
-server.listen(3333);
+server.listen(3333)
